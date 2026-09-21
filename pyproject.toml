@@ -1,0 +1,40 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ropublicdata"
+version = "0.1.0"
+description = "Keyless MCP tools wrapping Romanian public economic and cultural data sources."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+authors = [
+    { name = "Dana Juncu" },
+]
+keywords = ["mcp", "model-context-protocol", "romania", "open-data", "public-data"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+dependencies = [
+    "mcp>=2.0.0",
+    "requests>=2.31.0",
+    "beautifulsoup4>=4.12.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/dana-juncu/ropublicdata"
+Repository = "https://github.com/dana-juncu/ropublicdata"
+Issues = "https://github.com/dana-juncu/ropublicdata/issues"
+# ^ placeholder — update to the real repo URL once RoPublicData has a home on
+# github.com/dana-juncu (or wherever you decide to publish it).
+
+[project.scripts]
+ropublicdata = "ropublicdata.server:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ropublicdata"]

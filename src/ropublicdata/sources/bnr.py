@@ -9,6 +9,17 @@ dedicated subdomain.
 No key, no auth, no rate limit documented. BNR's own docs say the file
 updates once daily after 13:00 and ask integrators to cache locally
 rather than poll the HTML pages.
+
+GOTCHA (found via a live CI failure, Sept 2026): BNR's own XML feeds
+don't agree on their namespace URI. The daily feed and the 10-days feed
+use `xmlns="https://www.bnr.ro/xsd"` (https), but the per-year archive
+files use `xmlns="http://www.bnr.ro/xsd"` (plain http, no 's') — at
+least for 2020, spot-checked live. A namespace-exact XPath query against
+one hardcoded URI silently returns zero results on whichever feed uses
+the other one, with no error — it looks like "no data for that year"
+rather than "wrong namespace". Matched with a wildcard namespace
+(`{*}Cube`) below instead, so it doesn't matter which URI a given feed
+happens to use.
 """
 from xml.etree import ElementTree
 
@@ -19,14 +30,16 @@ BASE_URL = "https://curs.bnr.ro"
 LATEST_URL = f"{BASE_URL}/nbrfxrates.xml"
 LAST_10_DAYS_URL = f"{BASE_URL}/nbrfxrates10days.xml"
 YEAR_ARCHIVE_URL = f"{BASE_URL}/files/xml/years/nbrfxrates{{year}}.xml"
-XML_NS = {"bnr": "https://www.bnr.ro/xsd"}
 TIMEOUT = 20
 
 
 def _parse_cube(cube_el: ElementTree.Element) -> dict:
     """Turn one <Cube date="..."> element into a plain dict."""
     rates = {}
-    for rate_el in cube_el.findall("bnr:Rate", XML_NS):
+    # Wildcard namespace ({*}) rather than a hardcoded URI -- see the
+    # module docstring's GOTCHA: BNR's own feeds don't agree on http vs
+    # https for this namespace.
+    for rate_el in cube_el.findall("{*}Rate"):
         currency = rate_el.get("currency")
         multiplier = int(rate_el.get("multiplier", "1"))
         rates[currency] = {
@@ -45,7 +58,7 @@ def get_latest_rates() -> dict:
     resp = requests.get(LATEST_URL, timeout=TIMEOUT)
     resp.raise_for_status()
     root = ElementTree.fromstring(resp.content)
-    cube = root.find(".//bnr:Cube", XML_NS)
+    cube = root.find(".//{*}Cube")
     if cube is None:
         raise RuntimeError(
             f"Unexpected BNR XML structure — no <Cube> found. "
@@ -59,7 +72,7 @@ def get_last_10_days() -> list[dict]:
     resp = requests.get(LAST_10_DAYS_URL, timeout=TIMEOUT)
     resp.raise_for_status()
     root = ElementTree.fromstring(resp.content)
-    cubes = root.findall(".//bnr:Cube", XML_NS)
+    cubes = root.findall(".//{*}Cube")
     if not cubes:
         raise RuntimeError(
             f"Unexpected BNR XML structure — no <Cube> elements found. "
@@ -74,7 +87,7 @@ def get_year_archive(year: int) -> list[dict]:
     resp = requests.get(url, timeout=TIMEOUT)
     resp.raise_for_status()
     root = ElementTree.fromstring(resp.content)
-    cubes = root.findall(".//bnr:Cube", XML_NS)
+    cubes = root.findall(".//{*}Cube")
     if not cubes:
         raise RuntimeError(
             f"Unexpected BNR XML structure — no <Cube> elements found for "

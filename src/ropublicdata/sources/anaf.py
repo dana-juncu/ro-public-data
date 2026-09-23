@@ -11,6 +11,15 @@ No key, no login. Rate limit per ANAF's own docs: max 1 request/second,
 up to 100 CUIs per request — since ANAF accepts a whole list of CUIs in
 one call, batch lookups should go through get_companies() rather than
 looping single calls.
+
+GOTCHA (found via a live CI failure, Sept 2026): ANAF doesn't always
+signal "no record for this CUI" the documented way (a 200 response with
+the CUI simply absent from `found`). For at least one out-of-range CUI
+(1 — below Romania's real allocation range), it returns a plain HTTP 404
+instead, which `raise_for_status()` would otherwise turn into a crash
+rather than the "no record" result the rest of this module promises.
+Handled below by treating a 404 the same as "not found" — everything
+else still raises normally.
 """
 from datetime import date as _date
 
@@ -52,6 +61,11 @@ def get_companies(cuis: list[int], as_of: str | None = None) -> list[dict]:
         headers={"Content-Type": "application/json", "Accept": "application/json"},
         timeout=TIMEOUT,
     )
+    if resp.status_code == 404:
+        # See the module docstring's GOTCHA -- ANAF's own "not found" shape
+        # (200 + absent from `found`) doesn't cover every case; some CUIs
+        # get a plain 404 instead. Same meaning, so treat it the same way.
+        return []
     resp.raise_for_status()
     data = resp.json()
 

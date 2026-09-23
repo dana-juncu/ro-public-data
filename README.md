@@ -1,5 +1,7 @@
 # RoPublicData
 
+[![tests](https://github.com/dana-juncu/ro-public-data/actions/workflows/tests.yml/badge.svg)](https://github.com/dana-juncu/ro-public-data/actions/workflows/tests.yml)
+
 Keyless [MCP](https://modelcontextprotocol.io) tools for Romanian public
 economic and cultural data — exchange rates, company/VAT lookups, open
 datasets, official statistics, building safety records, and classified
@@ -114,6 +116,14 @@ formal API exists — they've been re-verified working as of Sept 2026,
 but sites like this can change without notice, and this project is
 maintained best-effort. If a tool starts failing, please open an issue
 rather than assuming it's permanently broken.
+
+Every tool is covered by a live integration test (`tests/`, one file per
+source) that runs on every push/PR and once a day on a schedule — see the
+badge above for current status, or the
+[Actions tab](https://github.com/dana-juncu/ro-public-data/actions) for
+history. A red run there means a real source changed shape or its nonce
+expired, not necessarily that something's unfixable — see
+`CONTRIBUTING.md`'s "When a source breaks" section.
 
 ## Contributing
 

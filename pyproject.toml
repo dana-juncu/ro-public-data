@@ -26,6 +26,12 @@ dependencies = [
     "beautifulsoup4>=4.12.0",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.23.0",
+]
+
 [project.urls]
 Homepage = "https://github.com/dana-juncu/ro-public-data"
 Repository = "https://github.com/dana-juncu/ro-public-data"
@@ -36,3 +42,9 @@ ropublicdata = "ropublicdata.server:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/ropublicdata"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "live: hits a real public endpoint over the network (the whole suite, by default -- see tests/conftest.py).",
+]

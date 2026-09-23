@@ -42,8 +42,19 @@ creativecommons.org/licenses/by-sa/4.0) — the only source in this
 project with an explicit open license, covering the images too.
 
 No key, no login, no rate limit observed.
+
+GOTCHA (found via a live CI failure, Sept 2026): this site is noticeably
+slower/less consistent than the others here — a plain GET occasionally
+takes longer than a generous 20s timeout with no other symptom (not a
+403, not a redirect, just slow), independent of any client-side rate
+limiting. Not a code bug, just this specific site under real-world load.
+Handled with one bounded retry (`_get_with_retry` below) rather than a
+longer single timeout, since a second attempt after a short pause
+resolves it in practice and doesn't make a genuine outage take any
+longer to fail than before.
 """
 import re
+import time
 from urllib.parse import urljoin
 
 import requests
@@ -52,7 +63,21 @@ from bs4 import BeautifulSoup
 # ── Config ──
 BASE = "https://clasate.cimec.ro"
 TIMEOUT = 20
+RETRY_PAUSE = 3  # seconds
 PAGE_SIZE = 50
+
+
+def _get_with_retry(url: str, params: dict) -> requests.Response:
+    """GET with one retry on timeout/connection error -- see the module
+    docstring's GOTCHA. Any other failure (4xx/5xx, etc.) still raises
+    immediately, same as a plain requests.get()."""
+    try:
+        resp = requests.get(url, params=params, timeout=TIMEOUT)
+    except (requests.exceptions.Timeout, requests.exceptions.ConnectionError):
+        time.sleep(RETRY_PAUSE)
+        resp = requests.get(url, params=params, timeout=TIMEOUT)
+    resp.raise_for_status()
+    return resp
 
 
 def _absolute(url: str) -> str:
@@ -99,8 +124,7 @@ def search_items(
     if obiect3d:
         params["obiect3d"] = "da"
 
-    resp = requests.get(f"{BASE}/Lista.asp", params=params, timeout=TIMEOUT)
-    resp.raise_for_status()
+    resp = _get_with_retry(f"{BASE}/Lista.asp", params)
     soup = BeautifulSoup(resp.text, "html.parser")
 
     count_text = soup.get_text(" ", strip=True)
@@ -153,8 +177,7 @@ def get_item_detail(k: str, tit: str = "item") -> dict:
     classification order document, when scanned/available), and
     sketchfab_url (an embeddable 3D model, for scanned items).
     """
-    resp = requests.get(f"{BASE}/Detaliu.asp", params={"tit": tit, "k": k}, timeout=TIMEOUT)
-    resp.raise_for_status()
+    resp = _get_with_retry(f"{BASE}/Detaliu.asp", {"tit": tit, "k": k})
     soup = BeautifulSoup(resp.text, "html.parser")
 
     fields = {}

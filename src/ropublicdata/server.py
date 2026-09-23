@@ -199,8 +199,11 @@ def amccrs_search_buildings(
     street: case-insensitive substring match on the street address
     (e.g. "Calea Victoriei").
     sector: exact match, e.g. "Sector 3" (Bucharest has Sectors 1-6).
-    risk_class: exact match on "RsI" (highest risk), "RsII", or
-    "RsIII" (lowest of the three classified risk levels).
+    risk_class: exact match on "RsI" (highest risk) through "RsIV"
+    (lowest classified risk), or "consolidated" (was at risk, since
+    retrofitted) or "pending" (flagged urgent-category, not yet
+    formally classified — this is the largest single bucket, over
+    half the registry).
     limit: max buildings to return (the search still runs over the
     full registry; this only caps the response size).
 

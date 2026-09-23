@@ -23,6 +23,10 @@ RoPublicData/
 ├── README.md                 # public-facing docs
 ├── FINDINGS.md                # full investigation notes per source (how each
 │                              # endpoint was found/verified, response shapes, gotchas)
+├── .github/workflows/
+│   └── tests.yml              # runs the test suite on push/PR and daily on a
+│                              # schedule — the daily run is what catches a
+│                              # source drifting before a user hits it
 ├── src/ropublicdata/
 │   ├── __init__.py
 │   ├── __main__.py           # enables `python -m ropublicdata`
@@ -34,8 +38,11 @@ RoPublicData/
 │       ├── ins_tempo.py       # INS Tempo-Online client — HTTP + CSV parsing
 │       ├── amccrs.py          # AMCCRS client — HTTP + JSON parsing
 │       └── clasate_cimec.py   # clasate.cimec.ro client — HTTP + HTML parsing
-└── test_mcp_client.py         # pure-Python MCP client, no npm needed —
-                                # verifies the installed package end-to-end
+└── tests/                     # one file per source, plus test_server.py
+                                # (end-to-end, via the real MCP protocol over
+                                # stdio — no npm/Node needed). Every test is a
+                                # real live call, no mocks — see
+                                # tests/conftest.py for why.
 ```
 
 Why one server instead of one-per-source: every source here is a
@@ -46,18 +53,37 @@ mirrors how Allemannsdata itself works as one hub.
 ## Dev setup
 
 ```bash
-git clone <this repo>
-cd RoPublicData
-pip install -e .
+git clone https://github.com/dana-juncu/ro-public-data
+cd ro-public-data
+pip install -e ".[dev]"
 ```
 
 `server.py` runs standalone too (`python -m ropublicdata`) for a quick
 sanity check, but a stdio MCP server prints nothing and just sits there
 waiting for a client, which looks exactly like it's frozen — that
-silence is correct. `test_mcp_client.py` actually exercises it
-end-to-end (spawns it as a subprocess, lists tools, calls one) without
-needing any MCP client installed — good for verifying a change before
-opening a PR.
+silence is correct.
+
+## Running the tests
+
+```bash
+pytest -v
+```
+
+Every test hits a real live endpoint — there's no mock/cassette layer,
+on purpose (see `tests/conftest.py`). That means the suite needs network
+access and will fail if a source is genuinely down, not just if the code
+is wrong; if a test fails, the first step is always "is the real site up
+right now", not "assume the code regressed" (see "When a source breaks"
+below). `tests/test_server.py` is the closest thing to
+`test_mcp_client.py`'s original role — it spawns the installed package as
+a real subprocess and drives it over the actual MCP protocol, without
+needing any MCP client or npm/Node installed.
+
+CI (`.github/workflows/tests.yml`) runs this same suite on every push/PR
+and once a day on a schedule — the daily run is the real point: it's what
+surfaces a source drifting (a changed API shape, an expired AMCCRS nonce)
+on its own, within a day, rather than waiting for a user to report it.
+GitHub emails the repo owner by default when a scheduled run fails.
 
 ## Adding a new source
 

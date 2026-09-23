@@ -20,6 +20,13 @@ the other one, with no error — it looks like "no data for that year"
 rather than "wrong namespace". Matched with a wildcard namespace
 (`{*}Cube`) below instead, so it doesn't matter which URI a given feed
 happens to use.
+
+GOTCHA 2 (same CI run): the 10-days feed's own XML doesn't actually come
+back oldest-first, despite that being the natural reading of "last 10
+days" -- live-confirmed it's newest-first (today's Cube first). Sorted
+explicitly below so `get_last_10_days()` has one stable, documented
+order regardless of what BNR's raw feed does today or does differently
+in the future.
 """
 from xml.etree import ElementTree
 
@@ -78,7 +85,10 @@ def get_last_10_days() -> list[dict]:
             f"Unexpected BNR XML structure — no <Cube> elements found. "
             f"Check {LAST_10_DAYS_URL} manually."
         )
-    return [_parse_cube(c) for c in cubes]
+    # Sort oldest-first explicitly -- see the module docstring's GOTCHA 2:
+    # the raw feed is actually newest-first, the opposite of what "last 10
+    # days" suggests.
+    return sorted((_parse_cube(c) for c in cubes), key=lambda day: day["date"])
 
 
 def get_year_archive(year: int) -> list[dict]:

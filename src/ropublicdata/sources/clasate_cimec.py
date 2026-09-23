@@ -43,15 +43,18 @@ project with an explicit open license, covering the images too.
 
 No key, no login, no rate limit observed.
 
-GOTCHA (found via a live CI failure, Sept 2026): this site is noticeably
-slower/less consistent than the others here — a plain GET occasionally
-takes longer than a generous 20s timeout with no other symptom (not a
-403, not a redirect, just slow), independent of any client-side rate
-limiting. Not a code bug, just this specific site under real-world load.
-Handled with one bounded retry (`_get_with_retry` below) rather than a
-longer single timeout, since a second attempt after a short pause
-resolves it in practice and doesn't make a genuine outage take any
-longer to fail than before.
+GOTCHA (found via two separate live CI failures, Sept 2026): this site
+is noticeably slower/less consistent than the others here — a plain GET
+occasionally takes longer than a generous timeout with no other symptom
+(not a 403, not a redirect, just slow or briefly unreachable),
+independent of any client-side rate limiting. The first fix here (one
+retry, 20s timeout) wasn't enough — a second live CI run still hit it on
+both calls, meaning the slow/unreachable window can run well past 20s.
+Bumped to 2 retries with a longer timeout and a backoff pause
+(`_get_with_retry` below); a genuine outage still eventually raises, it
+just takes longer to give up. Not a code bug, just this specific
+unofficial, no-SLA site under real-world conditions — see
+CONTRIBUTING.md's "When a source breaks".
 """
 import re
 import time
@@ -62,20 +65,26 @@ from bs4 import BeautifulSoup
 
 # ── Config ──
 BASE = "https://clasate.cimec.ro"
-TIMEOUT = 20
-RETRY_PAUSE = 3  # seconds
+TIMEOUT = 25
+RETRIES = 2
+RETRY_PAUSE = 5  # seconds, doubled after each retry
 PAGE_SIZE = 50
 
 
 def _get_with_retry(url: str, params: dict) -> requests.Response:
-    """GET with one retry on timeout/connection error -- see the module
-    docstring's GOTCHA. Any other failure (4xx/5xx, etc.) still raises
-    immediately, same as a plain requests.get()."""
-    try:
-        resp = requests.get(url, params=params, timeout=TIMEOUT)
-    except (requests.exceptions.Timeout, requests.exceptions.ConnectionError):
-        time.sleep(RETRY_PAUSE)
-        resp = requests.get(url, params=params, timeout=TIMEOUT)
+    """GET with a couple of retries on timeout/connection error -- see the
+    module docstring's GOTCHA. Any other failure (4xx/5xx, etc.) still
+    raises immediately, same as a plain requests.get()."""
+    pause = RETRY_PAUSE
+    for attempt in range(RETRIES + 1):
+        try:
+            resp = requests.get(url, params=params, timeout=TIMEOUT)
+            break
+        except (requests.exceptions.Timeout, requests.exceptions.ConnectionError):
+            if attempt == RETRIES:
+                raise
+            time.sleep(pause)
+            pause *= 2
     resp.raise_for_status()
     return resp
 

@@ -1,0 +1,41 @@
+name: tests
+
+# Every test in this suite is a real live call against the actual public
+# endpoint each tool wraps (see tests/conftest.py) -- so this workflow is
+# also this project's early-warning system: several of these sources are
+# reverse-engineered internal endpoints with no formal API contract
+# (AMCCRS's nonce, clasate.cimec.ro's HTML), and one already changed shape
+# once mid-build (data.europa.eu). Running on a schedule, not just on
+# push/PR, is what catches that kind of drift before a user hits it.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # 06:00 UTC daily -- cheap for a suite this small and light per-call,
+    # and catches a source breaking within a day rather than whenever
+    # someone next happens to push. A failed scheduled run notifies the
+    # repo owner by email by default (Settings -> Notifications).
+    - cron: "0 6 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install package + dev dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Run tests
+        run: pytest -v

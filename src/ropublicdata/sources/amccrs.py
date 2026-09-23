@@ -1,8 +1,9 @@
 """
 AMCCRS (Administraţia Municipală pentru Consolidarea Clădirilor cu Risc
 Seismic) — Bucharest's official registry of buildings classified by
-earthquake risk (RsI/RsII/RsIII), addresses, technical experts, and
-expertise dates.
+earthquake risk (RsI-RsIV, plus "consolidated"/retrofitted and "pending"/
+not-yet-classified — see `_risk_class()` below), addresses, technical
+experts, and expertise dates.
 
 Source confirmed live Sept 15, 2026 and RE-confirmed unchanged Sept 22,
 2026, including the same reusable nonce still working a week later (see
@@ -67,10 +68,49 @@ def scrape_nonce() -> str:
     return match.group(1)
 
 
+RS_RE = re.compile(r"Rs\s*([IV]+)", re.IGNORECASE)
+CONSOLIDATED_RE = re.compile(r"CONSOLIDAT", re.IGNORECASE)
+PENDING_RE = re.compile(r"NEINCADRAT|NEÎNCADRAT", re.IGNORECASE)
+
+
 def _risk_class(raw: str) -> str:
-    """'3.Clasa de risc seismic RsIII.' -> 'RsIII'"""
-    match = re.search(r"Rs[IVX]+", raw or "")
-    return match.group(0) if match else (raw or "").strip()
+    """
+    Normalize AMCCRS's raw risk-class free text into one of a fixed set
+    of values: 'RsI'..'RsIV' (classified, I = highest risk), 'consolidated'
+    (was at risk, since retrofitted), 'pending' (flagged urgent-category but
+    not yet formally classified into a risk class), or 'unknown' for the
+    small number of rows (3 of 2,796 as of Sept 2026) that are neither —
+    real AMCCRS data-entry artifacts, like a technical expert's name typed
+    into this field instead of a classification.
+
+    This field is much messier than a first look suggests: only ~59% of
+    rows are actually RsI-RsIV. The single largest bucket (~52%) is a
+    bureaucratic status phrase meaning "flagged urgent-category, not yet
+    classified" — these buildings are NOT known to be at any particular
+    risk level, they're in the queue. Another ~4% read "5.CONSOLIDATE" /
+    "CONSOLIDATE" — buildings that WERE at risk but have since been
+    structurally retrofitted: a resolved case, not a current risk. Real
+    raw text, verbatim: 'INCADRARE IN CATEGORIE DE URGENTA; NEINCADRATE IN
+    CLASE DE RISC SEISMIC CORESPUNZATOARE' (-> 'pending'), '5.CONSOLIDATE'
+    (-> 'consolidated'), '3.Clasa de risc seismic RsIII.' (-> 'RsIII').
+    Treating any of this as a silent empty value, or lumping
+    'pending'/'consolidated' in with an actual RsI-RsIV class, would
+    misrepresent real buildings as more or less at-risk than AMCCRS's own
+    registry actually says.
+    """
+    raw = (raw or "").strip()
+    if not raw:
+        return "unknown"
+    match = RS_RE.search(raw)
+    if match:
+        numeral = match.group(1).upper()
+        if numeral in ("I", "II", "III", "IV"):
+            return f"Rs{numeral}"
+    if CONSOLIDATED_RE.search(raw):
+        return "consolidated"
+    if PENDING_RE.search(raw):
+        return "pending"
+    return "unknown"
 
 
 def _clean(row: dict) -> dict:
@@ -121,8 +161,12 @@ def search_buildings(
     street: case-insensitive substring match on the street address
     (e.g. "Calea Victoriei").
     sector: exact match, e.g. "Sector 3" (Bucharest has Sectors 1-6).
-    risk_class: exact match on "RsI" (highest risk), "RsII", or
-    "RsIII" (lowest of the three classified risk levels).
+    risk_class: exact match on "RsI" (highest risk) through "RsIV"
+    (lowest classified risk), or "consolidated" (was at risk, since
+    retrofitted) or "pending" (flagged urgent-category, not yet
+    formally classified — this is the largest single bucket, over
+    half the registry). See `_risk_class()` in this module for why
+    the raw AMCCRS data needs this normalization.
     limit: max buildings to return (the search runs over the full
     registry regardless; this only caps the response size).
 

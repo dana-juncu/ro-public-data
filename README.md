@@ -6,6 +6,7 @@ Keyless [MCP](https://modelcontextprotocol.io) tools for Romanian public
 economic and cultural data — exchange rates, company/VAT lookups, open
 datasets, official statistics, building safety records, and classified
 cultural heritage, all wired into a single server any MCP client can use.
+Twelve tools across six sources, running locally on your own machine.
 
 Inspired by Thomas Heggelund's [Allemannsdata](https://www.allemannsdata.no/)
 (the Norwegian equivalent), but its own project with its own scope and
@@ -27,6 +28,45 @@ in principle any other MCP client) at it and ask things like:
 - "Is the building at Strada Academiei 1 on Bucharest's seismic-risk list?"
 - "Find classified cultural artifacts related to Brâncuși."
 
+## Example
+
+Asking for today's rates calls `bnr_latest_rates`, which returns BNR's
+official figures as structured data (trimmed here — the real response
+covers all ~37 currencies plus gold and SDRs):
+
+```json
+{
+  "date": "2026-10-21",
+  "rates": {
+    "EUR": { "rate_ron": 5.3297, "multiplier": 1 },
+    "USD": { "rate_ron": 4.7489, "multiplier": 1 },
+    "HUF": { "rate_ron": 1.4576, "multiplier": 100 }
+  }
+}
+```
+
+The `multiplier` matters for a few currencies: the HUF figure above is
+RON per 100 forints, not per one.
+
+A company lookup works the same way — `anaf_company_lookup` with CUI
+`14399840` returns ANAF's own record (trimmed):
+
+```json
+{
+  "date_generale": {
+    "cui": 14399840,
+    "denumire": "DANTE INTERNATIONAL SA",
+    "nrRegCom": "J2002000372404",
+    "cod_CAEN": "4754",
+    "statusRO_e_Factura": false
+  },
+  "inregistrare_scop_Tva": { "scpTVA": true }
+}
+```
+
+Field names are ANAF's own and are passed through as returned, so the
+same record can be matched against ANAF's published documentation.
+
 ## Scope
 
 Economic and cultural public data only. Deliberately excludes anything
@@ -40,12 +80,16 @@ built and maintained best-effort, in spare time, with no SLA.
 
 ## Install
 
+Requires Python 3.10 or newer (the test suite runs on 3.10 and 3.12).
+
 ```bash
-pip install ropublicdata
+git clone https://github.com/dana-juncu/ro-public-data
+cd ro-public-data
+pip install .
 ```
 
-(Not yet on PyPI — for now, clone this repo and run `pip install .`
-from its root, or `pip install -e .` for a development install.)
+(Use `pip install -e ".[dev]"` instead if you want to run the tests or
+contribute — see `CONTRIBUTING.md`.)
 
 Then point your MCP client at it. For Claude Desktop, add this to your
 `claude_desktop_config.json`:
@@ -117,9 +161,17 @@ but sites like this can change without notice, and this project is
 maintained best-effort. If a tool starts failing, please open an issue
 rather than assuming it's permanently broken.
 
+Two further things are worth knowing. INS Tempo-Online's API is only
+served over plain HTTP (port 8077, no HTTPS), so requests to that one
+source aren't encrypted in transit — fine for public statistics, but
+worth knowing if you run this on a restricted network. And
+clasate.cimec.ro is noticeably slower than the others, so its client
+retries on a timeout and its tests are skipped rather than failed if
+the site is unreachable.
+
 Every tool is covered by a live integration test (`tests/`, one file per
-source) that runs on every push/PR and once a day on a schedule — see the
-badge above for current status, or the
+source) that runs on every push/PR and once a day on a schedule, on
+Python 3.10 and 3.12 — see the badge above for current status, or the
 [Actions tab](https://github.com/dana-juncu/ro-public-data/actions) for
 history. A red run there means a real source changed shape or its nonce
 expired, not necessarily that something's unfixable — see

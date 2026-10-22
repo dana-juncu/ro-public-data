@@ -83,13 +83,12 @@ built and maintained best-effort, in spare time, with no SLA.
 Requires Python 3.10 or newer (the test suite runs on 3.10 and 3.12).
 
 ```bash
-git clone https://github.com/dana-juncu/ro-public-data
-cd ro-public-data
-pip install .
+pip install ropublicdata
 ```
 
-(Use `pip install -e ".[dev]"` instead if you want to run the tests or
-contribute — see `CONTRIBUTING.md`.)
+(The package is on [PyPI](https://pypi.org/project/ropublicdata/). To
+run the tests or contribute, clone this repo and use
+`pip install -e ".[dev]"` instead — see `CONTRIBUTING.md`.)
 
 Then point your MCP client at it. For Claude Desktop, add this to your
 `claude_desktop_config.json`:
